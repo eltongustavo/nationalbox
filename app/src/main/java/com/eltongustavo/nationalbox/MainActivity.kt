@@ -99,7 +99,6 @@ fun Home() {
         pokemonIdCalculated = validId
         textFieldValue = validId.toString()
 
-        // Função que preenche a lista de IDs da box atual
         val currentBox = ((validId - 1) / 30) + 1
         pokemonIdsInBox = (0..29).map { ((currentBox - 1) * 30) + it + 1 }
 
