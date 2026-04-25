@@ -1,9 +1,6 @@
 package com.eltongustavo.nationalbox.ui.theme
 
 import androidx.compose.ui.graphics.Color
-
-val red = Color(0xFFE3350D)
-
 val blue = Color(0xFF1976D2)
 
 val white = Color(0xFFFFFFFF)

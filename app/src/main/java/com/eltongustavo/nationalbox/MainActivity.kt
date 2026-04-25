@@ -35,7 +35,6 @@ import com.eltongustavo.nationalbox.ui.theme.black
 import com.eltongustavo.nationalbox.ui.theme.blue
 import com.eltongustavo.nationalbox.ui.theme.gray
 import com.eltongustavo.nationalbox.ui.theme.light_gray
-import com.eltongustavo.nationalbox.ui.theme.red
 import com.eltongustavo.nationalbox.ui.theme.white
 
 class MainActivity : ComponentActivity() {
@@ -189,7 +188,7 @@ fun Home() {
 
                 OutlinedTextField(
                     value = textFieldValue,
-                    onValueChange = { if (it.length <= 4) textFieldValue = it },
+                    onValueChange = { if (it.length <= 5) textFieldValue = it },
                     label = { Text("Número na National Dex ") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     shape = RoundedCornerShape(12.dp),
