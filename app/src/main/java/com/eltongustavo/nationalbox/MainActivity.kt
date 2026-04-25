@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,12 +31,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil.ImageLoader
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.eltongustavo.nationalbox.ui.theme.black
 import com.eltongustavo.nationalbox.ui.theme.blue
 import com.eltongustavo.nationalbox.ui.theme.gray
 import com.eltongustavo.nationalbox.ui.theme.light_gray
 import com.eltongustavo.nationalbox.ui.theme.white
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,11 +59,34 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Home() {
+    val context = LocalContext.current
+    val imageLoader = remember {
+        ImageLoader.Builder(context)
+            .respectCacheHeaders(false)
+            .build()
+    }
+
     var textFieldValue by remember { mutableStateOf("1") }
     var pokemonIdCalculated by remember { mutableIntStateOf(1) }
+    var maxPokemonId by remember { mutableIntStateOf(1025) } 
+    var refreshTrigger by remember { mutableIntStateOf(0) }
+    var pokemonIdsInBox by remember { mutableStateOf((1..30).toList()) }
 
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val response = URL("https://pokeapi.co/api/v2/pokemon-species/?limit=0").readText()
+                val json = JSONObject(response)
+                val count = json.getInt("count")
+                if (count > 0) maxPokemonId = count
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     val boxNumber = ((pokemonIdCalculated - 1) / 30) + 1
     val targetSlotIndex = (pokemonIdCalculated - 1) % 30
@@ -64,7 +95,15 @@ fun Home() {
 
     val updatePosition = {
         val id = textFieldValue.toIntOrNull() ?: 1
-        if (id > 0) pokemonIdCalculated = id
+        val validId = id.coerceIn(1, maxPokemonId)
+        pokemonIdCalculated = validId
+        textFieldValue = validId.toString()
+
+        // Função que preenche a lista de IDs da box atual
+        val currentBox = ((validId - 1) / 30) + 1
+        pokemonIdsInBox = (0..29).map { ((currentBox - 1) * 30) + it + 1 }
+
+        refreshTrigger++ 
         focusManager.clearFocus()
     }
 
@@ -143,9 +182,12 @@ fun Home() {
                             modifier = Modifier.heightIn(max = 1000.dp),
                             userScrollEnabled = false
                         ) {
-                            items(30) { index ->
-                                val isSelected = index == targetSlotIndex
-                                val slotPokemonId = ((boxNumber - 1) * 30) + index + 1
+                            items(
+                                count = pokemonIdsInBox.size,
+                                key = { index -> "${pokemonIdsInBox[index]}_$refreshTrigger" }
+                            ) { index ->
+                                val slotPokemonId = pokemonIdsInBox[index]
+                                val isSelected = slotPokemonId == pokemonIdCalculated
 
                                 Box(
                                     modifier = Modifier
@@ -159,12 +201,44 @@ fun Home() {
                                         ),
                                     contentAlignment = Alignment.TopEnd
                                 ) {
+                                    val request = remember(slotPokemonId, refreshTrigger) {
+                                        ImageRequest.Builder(context)
+                                            .data("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/$slotPokemonId.png")
+                                            .crossfade(true)
+                                            .build()
+                                    }
 
-                                    AsyncImage(
-                                        model = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/$slotPokemonId.png",
+                                    SubcomposeAsyncImage(
+                                        model = request,
+                                        imageLoader = imageLoader,
                                         contentDescription = null,
                                         modifier = Modifier.fillMaxSize().padding(4.dp),
-                                        contentScale = ContentScale.Fit
+                                        contentScale = ContentScale.Fit,
+                                        loading = {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(24.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = light_gray
+                                                )
+                                            }
+                                        },
+                                        error = {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Warning,
+                                                    contentDescription = null,
+                                                    tint = gray.copy(alpha = 0.4f),
+                                                    modifier = Modifier.size(32.dp)
+                                                )
+                                            }
+                                        }
                                     )
                                     Box {
                                         Text(
@@ -188,9 +262,17 @@ fun Home() {
 
                 OutlinedTextField(
                     value = textFieldValue,
-                    onValueChange = { if (it.length <= 5) textFieldValue = it },
-                    label = { Text("Número na National Dex ") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    onValueChange = {
+                        if (it.all { char -> char.isDigit() } && it.length <= maxPokemonId.toString().length) {
+                            textFieldValue = it
+                        }
+                    },
+                    label = { Text("Número na National Dex (Máx: $maxPokemonId)") },
+                    leadingIcon = {
+                        IconButton(onClick = { updatePosition() }) {
+                            Icon(Icons.Default.Search, contentDescription = "Pesquisar")
+                        }
+                    },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(0.9f),
                     keyboardOptions = KeyboardOptions(
