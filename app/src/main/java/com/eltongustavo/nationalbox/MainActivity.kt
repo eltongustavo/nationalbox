@@ -41,8 +41,11 @@ import com.eltongustavo.nationalbox.ui.theme.gray
 import com.eltongustavo.nationalbox.ui.theme.light_gray
 import com.eltongustavo.nationalbox.ui.theme.white
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.net.URL
 
 class MainActivity : ComponentActivity() {
@@ -72,9 +75,15 @@ fun Home() {
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var pokemonIdsInBox by remember { mutableStateOf((1..30).toList()) }
 
+    // Pasta local para salvar as imagens
+    val imagesDir = remember { File(context.filesDir, "pokemon_images").apply { if (!exists()) mkdirs() } }
+    var isSyncing by remember { mutableStateOf(false) }
+    var syncProgress by remember { mutableIntStateOf(0) }
+
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
 
+    // 1. Busca o total de pokémons e inicia sincronização
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
@@ -82,6 +91,34 @@ fun Home() {
                 val json = JSONObject(response)
                 val count = json.getInt("count")
                 if (count > 0) maxPokemonId = count
+
+                // 2. Lógica de Sincronização
+                val files = imagesDir.listFiles()?.filter { it.name.endsWith(".png") } ?: emptyList()
+                if (files.size < maxPokemonId) {
+                    isSyncing = true
+                    for (id in 1..maxPokemonId) {
+                        val file = File(imagesDir, "$id.png")
+                        if (!file.exists()) {
+                            try {
+                                val url = URL("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/$id.png")
+                                val connection = url.openConnection()
+                                connection.connectTimeout = 5000
+                                connection.readTimeout = 5000
+                                
+                                connection.getInputStream().use { input ->
+                                    FileOutputStream(file).use { output ->
+                                        input.copyTo(output)
+                                    }
+                                }
+                                syncProgress = id
+                                delay(500)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+                    isSyncing = false
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -121,13 +158,21 @@ fun Home() {
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "National Box",
-                        color = white,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(vertical = 5.dp)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "National Box",
+                            color = white,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                        if (isSyncing) {
+                            Text(
+                                text = "Sincronizando imagens: $syncProgress/$maxPokemonId",
+                                color = white.copy(alpha = 0.8f),
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -187,6 +232,7 @@ fun Home() {
                             ) { index ->
                                 val slotPokemonId = pokemonIdsInBox[index]
                                 val isSelected = slotPokemonId == pokemonIdCalculated
+                                val localFile = remember(slotPokemonId) { File(imagesDir, "$slotPokemonId.png") }
 
                                 Box(
                                     modifier = Modifier
@@ -200,45 +246,62 @@ fun Home() {
                                         ),
                                     contentAlignment = Alignment.TopEnd
                                 ) {
-                                    val request = remember(slotPokemonId, refreshTrigger) {
-                                        ImageRequest.Builder(context)
-                                            .data("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/$slotPokemonId.png")
-                                            .crossfade(true)
-                                            .build()
-                                    }
+                                    if (slotPokemonId <= maxPokemonId) {
+                                        val request = remember(slotPokemonId, refreshTrigger) {
+                                            val data: Any = if (localFile.exists()) localFile
+                                            else "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/$slotPokemonId.png"
 
-                                    SubcomposeAsyncImage(
-                                        model = request,
-                                        imageLoader = imageLoader,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize().padding(4.dp),
-                                        contentScale = ContentScale.Fit,
-                                        loading = {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(24.dp),
-                                                    strokeWidth = 2.dp,
-                                                    color = light_gray
-                                                )
-                                            }
-                                        },
-                                        error = {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Warning,
-                                                    contentDescription = null,
-                                                    tint = gray.copy(alpha = 0.4f),
-                                                    modifier = Modifier.size(32.dp)
-                                                )
-                                            }
+                                            ImageRequest.Builder(context)
+                                                .data(data)
+                                                .crossfade(true)
+                                                .build()
                                         }
-                                    )
+
+                                        SubcomposeAsyncImage(
+                                            model = request,
+                                            imageLoader = imageLoader,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize().padding(4.dp),
+                                            contentScale = ContentScale.Fit,
+                                            loading = {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(24.dp),
+                                                        strokeWidth = 2.dp,
+                                                        color = light_gray
+                                                    )
+                                                }
+                                            },
+                                            error = {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Warning,
+                                                        contentDescription = null,
+                                                        tint = gray.copy(alpha = 0.4f),
+                                                        modifier = Modifier.size(32.dp)
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Warning,
+                                                contentDescription = null,
+                                                tint = gray.copy(alpha = 0.2f),
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                    }
                                     Box {
                                         Text(
                                             text = slotPokemonId.toString(),
