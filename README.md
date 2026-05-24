@@ -8,7 +8,7 @@ Abaixo Screenshots do aplicativo em funcionamento
 
 ## Screenshots
 
-<img src="./screenshots/screenshot1.jpeg" width="700" />
-<img src="./screenshots/screenshot2.jpeg" width="700" />
-<img src="./screenshots/screenshot3.jpeg" width="700" />
+<img src="./screenshots/screenshot1.jpeg" width="300" />
+<img src="./screenshots/screenshot2.jpeg" width="300" />
+<img src="./screenshots/screenshot3.jpeg" width="300" />
 
