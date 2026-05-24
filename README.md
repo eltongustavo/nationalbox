@@ -6,12 +6,9 @@ Link para instalação via PlayStore:
 
 Abaixo Screenshots do aplicativo em funcionamento
 
-### Screenshot 1
-![Screenshot 1](./screenshots/screenshot1.jpeg)
+## Screenshots
 
-### Screenshot 2
-![Screenshot 2](./screenshots/screenshot2.jpeg)
-
-### Screenshot 3
-![Screenshot 3](./screenshots/screenshot3.jpeg)
+<img src="./screenshots/screenshot1.png" width="700" />
+<img src="./screenshots/screenshot2.png" width="700" />
+<img src="./screenshots/screenshot3.png" width="700" />
 
